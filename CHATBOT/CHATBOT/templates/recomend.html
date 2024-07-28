@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Leckerli+One&display=swap" rel="stylesheet">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+</head>
+<body>
+    <div style="display: flex;">
+        <a href="{{ url_for('home') }}" style="display: inline-block;">
+            <img src="/static/images/askw.png" style="margin-top: 3%; margin-left: -2%;" alt="askVIT" class="logo">
+        </a>
+        <div class="button3">
+            <a href="{{ url_for('home') }}" class="button1" style="text-decoration: none;">AI</a>
+            <a href="{{ url_for('ask') }}" class="button1" style="text-decoration: none;">Ask</a>
+            <a href="{{ url_for('recomend') }}" class="button1" style="text-decoration: none;">Recommend</a>
+        </div>
+    </div>
+
+    <div id="all"></div>
+    <!-- Additional cards can be added similarly -->
+
+    <script>
+        function toggleAnswerSection(button) {
+            const answerSection = button.nextElementSibling;
+            if (answerSection.style.display === 'none' || answerSection.style.display === '') {
+                answerSection.style.display = 'block';
+            } else {
+                answerSection.style.display = 'none';
+            }
+        }
+
+        function sendReply(button) {
+            const textarea = document.getElementById(`add_${button}`);
+            const replyText = textarea.value.trim();
+            console.log(replyText);
+            const parentId = button;
+            if (replyText) {
+                fetch("{{ url_for('post_reply') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ parent_id: parentId, content: replyText })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        console.log(data.message);
+                        textarea.value = ''; // Clear the textarea
+                        fetchReplies(parentId); // Refresh replies
+                    } else {
+                        console.log('Error posting reply: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    console.log('Error posting reply: ' + error.message);
+                });
+            }
+        }
+          
+        function fetchReplies(parentId) {
+            return fetch(`{{ url_for('get_replies', parent_id='') }}${parentId}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    console.log('Error fetching replies: ' + error.message);
+                });
+        }
+
+        function toggleDropdown(button) {
+            const dropdownContent = document.getElementById(button);
+            if (dropdownContent.style.display=='none' | dropdownContent.style.display=='') dropdownContent.style.display='block';
+            else dropdownContent.style.display='none';
+        }
+
+        function fetchReviews() {
+            fetch("{{ url_for('get_reviews') }}")
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(async (reviews) => {
+                    const container = document.getElementById('all');
+                    if (container) {
+                        container.innerHTML = ''; // Clear existing content
+                        
+                        // Fetch replies for each review
+                        for (const review of reviews) {
+                            const replies = await fetchReplies(review._id);
+                            
+                            let replyHTML = '<div class="dropdown-content" id="reply_' + review._id + '">';
+                            replies.forEach(reply => {
+                                replyHTML += '<div class="reply-list"><span style="color: blue;">Anonymous :</span>' + reply.content + '</div>';
+
+                            });
+                            replyHTML += '</div>';
+                            
+                            container.innerHTML += `
+                                <div class="recomend-cards" id="review_${review._id}">
+                                    <div class="recomend-cards-content" style="width:650px">${review.content}</div>
+                                    <button class="reply-button" onclick="toggleAnswerSection(this)">Reply</button>
+                                    <div class="answer-section" style="display: none;">
+                                        <textarea style="max-height: 40px" placeholder="Type your answer here..." id="add_${review._id}"></textarea>
+                                        <button class="send-button" onclick="sendReply('${review._id}')">Send</button>
+                                    </div>
+                                    <button class="dropdown-button" onclick="toggleDropdown('reply_${review._id}')">Show Replies</button>
+                                    ${replyHTML}
+                                </div>
+                            `;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    console.log('Error fetching reviews: ' + error.message);
+                });
+        }
+        
+        document.addEventListener('DOMContentLoaded', fetchReviews);
+    </script>
+</body>
+</html>
